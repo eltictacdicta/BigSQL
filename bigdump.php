@@ -985,7 +985,7 @@ function create_ajax_script()
 			r.getElementsByTagName("elem_bar").item(0).firstChild.nodeValue;
 			 
 		// action url (XML response)	 
-		url_request =  get_url(,'.$_SERVER['PHP_SELF'].',
+		url_request =  get_url("'.$_SERVER['PHP_SELF'].'",
 			get_xml_data("linenumber",r),
 			get_xml_data("fn",r),
 			get_xml_data("foffset",r),
@@ -998,7 +998,7 @@ function create_ajax_script()
 
 	// First Ajax request from initial page
 	var http_request = false;
-	var url_request =  get_url('.$_SERVER['PHP_SELF'].',';
+	var url_request =  get_url("'.$_SERVER['PHP_SELF'].'",';
   echo ($linenumber.',"'.urlencode($curfilename).'",'.$foffset.','.$totalqueries.',"'.urlencode($delimiter).'"') ;
   echo ");";
 	echo 'window.setTimeout("makeRequest(url_request)",500+'.$delaypersession.');
