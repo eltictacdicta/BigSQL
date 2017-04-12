@@ -36,12 +36,7 @@ error_reporting(E_ALL);
 // *** Fix a typo in HTML code
 // *** Change from mySQL to mySQLi
 
-// Database configuration
-defined( 'DB_SERVER' ) or die( ':(' );
-$db_server   = DB_SERVER;
-$db_name     = DB_NAME;
-$db_username = DB_USERNAME;
-$db_password = DB_PASSWORD;
+
 
 
 
@@ -117,10 +112,8 @@ if (!$error && !function_exists('mysqli_connect'))
 // Calculate PHP max upload size (handle settings like 10M or 100K)
 
 if (!$error)
-{ $upload_max_filesize=ini_get("upload_max_filesize");
-  if (preg_match("/([0-9]+)K/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024;
-  if (preg_match("/([0-9]+)M/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024*1024;
-  if (preg_match("/([0-9]+)G/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024*1024*1024;
+{ 
+    $upload_max_filesize=  calculate_upload();
 }
 
 // Get the current directory
@@ -192,13 +185,12 @@ if (!$error && !TESTMODE)
   if (!$error && $db_connection_charset!=='')
     $mysqli->query("SET NAMES $db_connection_charset");
 
-  if (!$error && isset ($pre_query) && sizeof ($pre_query)>0)
+  if (!$error && isset ($pre_query) && sizeof ($pre_query)>0)      	
   { reset($pre_query);
     foreach ($pre_query as $pre_query_value)
     {	if (!$mysqli->query($pre_query_value))
     	{ echo ("<p class=\"error\">Error with pre-query.</p>\n");
       	echo ("<p>Query: ".trim(nl2br(htmlentities($pre_query_value)))."</p>\n");
-      	echo ("<p>MySQL: ".$mysqli->error."</p>\n");
       	$error=true;
       	break;
      }
@@ -997,4 +989,15 @@ function load_header()
   skin_open();
   echo ('<h1>BigDump: Staggered MySQL Dump Importer v'.VERSION.'</h1>');
   skin_close();
+  
+  
+}
+
+function calculate_upload()
+{
+  $upload_max_filesize=ini_get("upload_max_filesize");
+  if (preg_match("/([0-9]+)K/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024;
+  if (preg_match("/([0-9]+)M/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024*1024;
+  if (preg_match("/([0-9]+)G/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024*1024*1024;
+  return $upload_max_filesize;
 }
