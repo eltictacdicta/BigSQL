@@ -66,12 +66,8 @@ if (function_exists("date_default_timezone_set") && function_exists("date_defaul
   @date_default_timezone_set(@date_default_timezone_get());
 
 // Clean and strip anything we don't want from user's input [0.27b]
+$_REQUEST=clean_request($_REQUEST);
 
-foreach ($_REQUEST as $key => $val) 
-{
-  $val = preg_replace("/[^_A-Za-z0-9-\.&= ;\$]/i",'', $val);
-  $_REQUEST[$key] = $val;
-}
 
 // Plugin handling is still EXPERIMENTAL and DISABLED
 // Register plugins by including plugin_name.php from each ./plugins/plugin_name
@@ -135,31 +131,8 @@ do_action ('script_runs');
 // Handle file upload
 
 if (!$error && isset($_REQUEST["uploadbutton"]))
-{ if (is_uploaded_file($_FILES["dumpfile"]["tmp_name"]) && ($_FILES["dumpfile"]["error"])==0)
-  { 
-    $uploaded_filename=str_replace(" ","_",$_FILES["dumpfile"]["name"]);
-    $uploaded_filename=preg_replace("/[^_A-Za-z0-9-\.]/i",'',$uploaded_filename);
-    $uploaded_filepath=str_replace("\\","/",$upload_dir."/".$uploaded_filename);
-
-    do_action('file_uploaded');
-
-    if (file_exists($uploaded_filename))
-    { echo ("<p class=\"error\">File $uploaded_filename already exist! Delete and upload again!</p>\n");
-    }
-    else if (!preg_match("/(\.(sql|gz|csv))$/i",$uploaded_filename))
-    { echo ("<p class=\"error\">You may only upload .sql .gz or .csv files.</p>\n");
-    }
-    else if (!@move_uploaded_file($_FILES["dumpfile"]["tmp_name"],$uploaded_filepath))
-    { echo ("<p class=\"error\">Error moving uploaded file ".$_FILES["dumpfile"]["tmp_name"]." to the $uploaded_filepath</p>\n");
-      echo ("<p>Check the directory permissions for $upload_dir (must be 777)!</p>\n");
-    }
-    else
-    { echo ("<p class=\"success\">Uploaded file saved as $uploaded_filename</p>\n");
-    }
-  }
-  else
-  { echo ("<p class=\"error\">Error uploading file ".$_FILES["dumpfile"]["name"]."</p>\n");
-  }
+{ 
+    upload_files();
 }
 
 
@@ -209,53 +182,8 @@ do_action('database_connected');
 // List uploaded files in multifile mode
 
 if (!$error && !isset($_REQUEST["fn"]) && $filename=="")
-{ if ($dirhandle = opendir($upload_dir)) 
-  { 
-    $files=array();
-    while (false !== ($files[] = readdir($dirhandle)));
-    closedir($dirhandle);
-    $dirhead=false;
-
-    if (sizeof($files)>0)
-    { 
-      sort($files);
-      foreach ($files as $dirfile)
-      { 
-        if ($dirfile != "." && $dirfile != ".." && $dirfile!=basename($_SERVER["SCRIPT_FILENAME"]) && preg_match("/\.(sql|gz|csv)$/i",$dirfile))
-        { if (!$dirhead)
-          { echo ("<table width=\"100%\" cellspacing=\"2\" cellpadding=\"2\">\n");
-            echo ("<tr><th>Filename</th><th>Size</th><th>Date&amp;Time</th><th>Type</th><th>&nbsp;</th><th>&nbsp;</th>\n");
-            $dirhead=true;
-          }
-          echo ("<tr><td>$dirfile</td><td class=\"right\">".filesize($upload_dir.'/'.$dirfile)."</td><td>".date ("Y-m-d H:i:s", filemtime($upload_dir.'/'.$dirfile))."</td>");
-
-          if (preg_match("/\.sql$/i",$dirfile))
-            echo ("<td>SQL</td>");
-          elseif (preg_match("/\.gz$/i",$dirfile))
-            echo ("<td>GZip</td>");
-          elseif (preg_match("/\.csv$/i",$dirfile))
-            echo ("<td>CSV</td>");
-          else
-            echo ("<td>Misc</td>");
-
-          if ((preg_match("/\.gz$/i",$dirfile) && function_exists("gzopen")) || preg_match("/\.sql$/i",$dirfile) || preg_match("/\.csv$/i",$dirfile))
-            echo ("<td><a href=\"".$_SERVER["PHP_SELF"]."?start=1&amp;fn=".urlencode($dirfile)."&amp;foffset=0&amp;totalqueries=0&amp;delimiter=".urlencode($delimiter)."\">Start Import</a> into $db_name at $db_server</td>\n <td><a href=\"".$_SERVER["PHP_SELF"]."?delete=".urlencode($dirfile)."\">Delete file</a></td></tr>\n");
-// TODO: echo ("<td><a href=\"".$_SERVER["PHP_SELF"]."?start=1&amp;fn=".urlencode($dirfile)."&amp;foffset=0&amp;totalqueries=0&amp;delimiter=".urlencode($delimiter)."\">Start Import</a></td>\n <td><a href=\"".$_SERVER["PHP_SELF"]."?delete=".urlencode($dirfile)."\">Delete file</a></td></tr>\n");
-          else
-            echo ("<td>&nbsp;</td>\n <td>&nbsp;</td></tr>\n");
-        }
-      }
-    }
-
-    if ($dirhead) 
-      echo ("</table>\n");
-    else 
-      echo ("<p>No uploaded SQL, GZ or CSV files found in the working directory</p>\n");
-  }
-  else
-  { echo ("<p class=\"error\">Error listing directory $upload_dir</p>\n");
-    $error=true;
-  }
+{ 
+    load_files_directory($upload_dir,$delimiter,$db_name, $db_server );
 }
 
 
@@ -1000,4 +928,94 @@ function calculate_upload()
   if (preg_match("/([0-9]+)M/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024*1024;
   if (preg_match("/([0-9]+)G/i",$upload_max_filesize,$tempregs)) $upload_max_filesize=$tempregs[1]*1024*1024*1024;
   return $upload_max_filesize;
+}
+
+function load_files_directory($upload_dir,$delimiter, $db_name, $db_server)
+{
+  if ($dirhandle = opendir($upload_dir)) 
+  { 
+    $files=array();
+    while (false !== ($files[] = readdir($dirhandle)));
+    closedir($dirhandle);
+    $dirhead=false;
+
+    if (sizeof($files)>0)
+    { 
+      sort($files);
+      foreach ($files as $dirfile)
+      { 
+        if ($dirfile != "." && $dirfile != ".." && $dirfile!=basename($_SERVER["SCRIPT_FILENAME"]) && preg_match("/\.(sql|gz|csv)$/i",$dirfile))
+        { if (!$dirhead)
+          { echo ("<table width=\"100%\" cellspacing=\"2\" cellpadding=\"2\">\n");
+            echo ("<tr><th>Filename</th><th>Size</th><th>Date&amp;Time</th><th>Type</th><th>&nbsp;</th><th>&nbsp;</th>\n");
+            $dirhead=true;
+          }
+          echo ("<tr><td>$dirfile</td><td class=\"right\">".filesize($upload_dir.'/'.$dirfile)."</td><td>".date ("Y-m-d H:i:s", filemtime($upload_dir.'/'.$dirfile))."</td>");
+
+          if (preg_match("/\.sql$/i",$dirfile))
+            echo ("<td>SQL</td>");
+          elseif (preg_match("/\.gz$/i",$dirfile))
+            echo ("<td>GZip</td>");
+          elseif (preg_match("/\.csv$/i",$dirfile))
+            echo ("<td>CSV</td>");
+          else
+            echo ("<td>Misc</td>");
+
+          if ((preg_match("/\.gz$/i",$dirfile) && function_exists("gzopen")) || preg_match("/\.sql$/i",$dirfile) || preg_match("/\.csv$/i",$dirfile))
+            echo ("<td><a href=\"".$_SERVER["PHP_SELF"]."?start=1&amp;fn=".urlencode($dirfile)."&amp;foffset=0&amp;totalqueries=0&amp;delimiter=".urlencode($delimiter)."\">Start Import</a> into $db_name at $db_server</td>\n <td><a href=\"".$_SERVER["PHP_SELF"]."?delete=".urlencode($dirfile)."\">Delete file</a></td></tr>\n");
+// TODO: echo ("<td><a href=\"".$_SERVER["PHP_SELF"]."?start=1&amp;fn=".urlencode($dirfile)."&amp;foffset=0&amp;totalqueries=0&amp;delimiter=".urlencode($delimiter)."\">Start Import</a></td>\n <td><a href=\"".$_SERVER["PHP_SELF"]."?delete=".urlencode($dirfile)."\">Delete file</a></td></tr>\n");
+          else
+            echo ("<td>&nbsp;</td>\n <td>&nbsp;</td></tr>\n");
+        }
+      }
+    }
+
+    if ($dirhead) 
+      echo ("</table>\n");
+    else 
+      echo ("<p>No uploaded SQL, GZ or CSV files found in the working directory</p>\n");
+  }
+  else
+  { echo ("<p class=\"error\">Error listing directory $upload_dir</p>\n");
+    $error=true;
+  }
+}
+
+function upload_file()
+{
+  if (is_uploaded_file($_FILES["dumpfile"]["tmp_name"]) && ($_FILES["dumpfile"]["error"])==0)
+  { 
+    $uploaded_filename=str_replace(" ","_",$_FILES["dumpfile"]["name"]);
+    $uploaded_filename=preg_replace("/[^_A-Za-z0-9-\.]/i",'',$uploaded_filename);
+    $uploaded_filepath=str_replace("\\","/",$upload_dir."/".$uploaded_filename);
+
+    do_action('file_uploaded');
+
+    if (file_exists($uploaded_filename))
+    { echo ("<p class=\"error\">File $uploaded_filename already exist! Delete and upload again!</p>\n");
+    }
+    else if (!preg_match("/(\.(sql|gz|csv))$/i",$uploaded_filename))
+    { echo ("<p class=\"error\">You may only upload .sql .gz or .csv files.</p>\n");
+    }
+    else if (!@move_uploaded_file($_FILES["dumpfile"]["tmp_name"],$uploaded_filepath))
+    { echo ("<p class=\"error\">Error moving uploaded file ".$_FILES["dumpfile"]["tmp_name"]." to the $uploaded_filepath</p>\n");
+      echo ("<p>Check the directory permissions for $upload_dir (must be 777)!</p>\n");
+    }
+    else
+    { echo ("<p class=\"success\">Uploaded file saved as $uploaded_filename</p>\n");
+    }
+  }
+  else
+  { echo ("<p class=\"error\">Error uploading file ".$_FILES["dumpfile"]["name"]."</p>\n");
+  }
+}
+
+function clean_request($request)
+{
+    foreach ($request as $key => $val) 
+    {
+      $val = preg_replace("/[^_A-Za-z0-9-\.&= ;\$]/i",'', $val);
+      $request[$key] = $val;
+    }
+    return $request;
 }
