@@ -828,7 +828,7 @@ function create_ajax_script()
 	    return;
 	  }
 		
-		// r = xml response
+		/// r = xml response
 		var r = http_request.responseXML;
 		
 		//if received not XML but HTML with new page to show
